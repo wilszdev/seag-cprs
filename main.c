@@ -37,8 +37,8 @@ static void* decompress(uint32_t* data, size_t sizeBytes, size_t* sizeOut);
 static const uint8_t CPRS_TABLE[768];
 
 int main(int argc, char** argv) {
-    if (argc != 3) {
-        fprintf(stderr, "Usage: %s <cprs file> <output file>\n", argv[0]);
+    if (argc != 2 && argc != 3) {
+        fprintf(stderr, "Usage: %s INPUTFILE [OUTPUTFILE]\n", argv[0]);
         return ERR_USAGE;
     }
 
@@ -58,13 +58,14 @@ int main(int argc, char** argv) {
         return ERR_UNCPRS;
     }
 
-    if (!write_file(argv[2], decompressed, decompressedSize)) {
-        free(decompressed);
-        return ERR_OUT_FILE;
-    }
+    int success = write_file(
+            argc == 3 ? argv[2] : 0,
+            decompressed,
+            decompressedSize);
 
     free(decompressed);
-    return 0;
+
+    return success ? ERR_OK : ERR_OUT_FILE;
 }
 
 static void* read_file(char* path, size_t* sizeOut) {
@@ -105,7 +106,7 @@ static void* read_file(char* path, size_t* sizeOut) {
 }
 
 static int write_file(char* path, void* data, size_t size) {
-    FILE* file = fopen(path, "wb");
+    FILE* file = path ? fopen(path, "wb") : stdout;
     if (!file) {
         fprintf(stderr, "Error: Unable to open file %s for writing\n", path);
         return 0;
@@ -118,7 +119,9 @@ static int write_file(char* path, void* data, size_t size) {
         return 0;
     }
 
-    fclose(file);
+    if (path) {
+        fclose(file);
+    }
     return 1;
 }
 
@@ -164,7 +167,7 @@ static void* decompress(uint32_t* data, size_t sizeBytes, size_t* sizeOut) {
 
         It's definitely not safe currently, there's absolutely no
         bounds checking.
-    */
+     */
 
     uint32_t* dst = buffer;
     uint32_t carry;
@@ -174,9 +177,9 @@ static void* decompress(uint32_t* data, size_t sizeBytes, size_t* sizeOut) {
 
         if ((alpha & 1) == 0) {
             extraBits = alpha >> 9;
+            remainingShifts -= 9;
             carry = alpha >> 1 & 0xff;
             alpha = index & 3;
-            remainingShifts = remainingShifts - 9;
             index += 1;
             *(uint8_t*)((size_t)&currentValue + alpha) = (uint8_t)carry;
             if ((index & 3) == 0) {
@@ -191,7 +194,7 @@ static void* decompress(uint32_t* data, size_t sizeBytes, size_t* sizeOut) {
             uint32_t* puVar2 = (uint32_t*)(CPRS_TABLE + (uVar1 & 0xf) * 0x10 + 0x40);
             uVar1 = *puVar2;
             extraBits = uVar5 >> (uVar1 & 0xff);
-            remainingShifts = ((remainingShifts - uVar9) + -7) - uVar1;
+            remainingShifts -= uVar9 + 7 + uVar1;
             int iVar7 = puVar2[2] + ((1 << (uVar1 & 0xff)) - 1U & uVar5);
             if (iVar7 >= CPRS_TERM) {
                 break;
