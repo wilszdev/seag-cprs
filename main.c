@@ -27,6 +27,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define ERR_UNCPRS      0x08
 #define ERR_OUT_FILE    0x10
 
+#define FILE_READ_INCREMENT 0x1000
+
 static void* read_file(char* path, size_t* sizeOut);
 static int write_file(char* path, void* data, size_t size);
 static void* decompress(uint32_t* data, size_t sizeBytes, size_t* sizeOut);
@@ -43,7 +45,10 @@ int main(int argc, char** argv) {
     }
 
     size_t compressedSize = 0;
-    void* compressed = read_file(argv[1], &compressedSize);
+    void* compressed = read_file(
+            (argv[1][0] == '-' && argv[1][1] == 0) ? 0 : argv[1],
+            &compressedSize);
+
     if (!compressed) {
         return ERR_CPRS_FILE;
     }
@@ -69,39 +74,31 @@ int main(int argc, char** argv) {
 }
 
 static void* read_file(char* path, size_t* sizeOut) {
-    FILE* file = fopen(path, "rb");
+    FILE* file = path ? fopen(path, "rb") : stdin;
     if (!file) {
         fprintf(stderr, "Error: Unable to open file %s\n", path);
         return 0;
     }
 
-    fseek(file, 0, SEEK_END);
-    long size = ftell(file);
-    fseek(file, 0, SEEK_SET);
+    uint8_t* buffer = 0;
+    size_t bufferSize = 0;
+    size_t totalBytesRead = 0;
 
-    if (size <= 0) {
-        fprintf(stderr, "Error: File %s is empty or cannot be read\n", path);
+    size_t bytesRead = 0;
+    do {
+        totalBytesRead += bytesRead;
+
+        if (totalBytesRead >= bufferSize) {
+            buffer = realloc(buffer, bufferSize + FILE_READ_INCREMENT);
+            bufferSize += FILE_READ_INCREMENT;
+        }
+    } while ((bytesRead = fread(buffer + totalBytesRead, 1, bufferSize - totalBytesRead, file)) != 0);
+
+    if (path) {
         fclose(file);
-        return 0;
     }
 
-    void* buffer = malloc(size);
-    if (!buffer) {
-        fprintf(stderr, "Error: Failed to malloc() buffer\n");
-        fclose(file);
-        return 0;
-    }
-
-    size_t bytesRead = fread(buffer, 1, size, file);
-    if (bytesRead != (size_t)size) {
-        fprintf(stderr, "Error: Failed to read entire file %s\n", path);
-        free(buffer);
-        fclose(file);
-        return 0;
-    }
-
-    fclose(file);
-    *sizeOut = (size_t)size;
+    *sizeOut = totalBytesRead;
     return buffer;
 }
 
