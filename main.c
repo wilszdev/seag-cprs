@@ -192,17 +192,17 @@ static void* decompress(uint32_t* data, size_t sizeBytes, size_t* sizeOut) {
             uint32_t uVar9 = CPRS_TABLE[(alpha >> 1 & 3) * 0x04];
             uint32_t uVar1 = (alpha >> 3) >> (uVar9 & 0xff);
             uint32_t uVar5 = uVar1 >> 4;
-            const uint32_t* puVar2 = &CPRS_TABLE[(uVar1 & 0xf) * 0x04 + 0x10];
-            uVar1 = *puVar2;
+            size_t tableIndex = (uVar1 & 0xf) * 0x04 + 0x10;
+            uVar1 = CPRS_TABLE[tableIndex];
             readCarryByte = uVar5 >> (uVar1 & 0xff);
             remainingShifts -= uVar9 + 7 + uVar1;
-            int iVar7 = puVar2[2] + ((1 << (uVar1 & 0xff)) - 1U & uVar5);
+            int iVar7 = CPRS_TABLE[tableIndex + 2] + ((1 << (uVar1 & 0xff)) - 1U & uVar5);
             if (iVar7 >= CPRS_TERM) {
                 break;
             }
             int iVar6 = CPRS_TABLE[(alpha >> 1 & 3) * 0x04 + 2]
                 + ((1 << (uVar9 & 0xff)) - 1U & alpha >> 3)
-                + ((int)(puVar2[1] + 0xb) >> 3);
+                + ((int)(CPRS_TABLE[tableIndex + 1] + 0xb) >> 3);
             if (iVar7 == 0) {
                 while (iVar6--) {
                     alpha = index & 3;
