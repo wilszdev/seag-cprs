@@ -149,7 +149,7 @@ static void* decompress(uint32_t* data, size_t sizeBytes, size_t* sizeOut) {
     uint32_t alpha = data[3];
     uint32_t beta = data[4];
 
-    uint32_t remainingShifts = 0x20;
+    int8_t remainingShifts = 0x20;
     uint32_t currentValue = 0;
 
     uint32_t* readCursor = data + 5;
@@ -166,22 +166,21 @@ static void* decompress(uint32_t* data, size_t sizeBytes, size_t* sizeOut) {
         bounds checking.
      */
 
-    uint32_t* dst = buffer;
-    uint32_t carry;
+    uint8_t writeCarryByte;
 
     while (1) {
-        uint32_t extraBits;
+        uint32_t readCarryByte;
 
         if ((alpha & 1) == 0) {
-            extraBits = alpha >> 9;
+            readCarryByte = alpha >> 9;
             remainingShifts -= 9;
-            carry = alpha >> 1 & 0xff;
+            writeCarryByte = alpha >> 1 & 0xff;
             alpha = index & 3;
             index += 1;
-            *(uint8_t*)((size_t)&currentValue + alpha) = (uint8_t)carry;
+            *(uint8_t*)((size_t)&currentValue + alpha) = writeCarryByte;
             if ((index & 3) == 0) {
-                *dst = currentValue;
-                dst += 1;
+                *writeCursor = currentValue;
+                writeCursor += 1;
                 currentValue = 0;
             }
         } else {
@@ -190,7 +189,7 @@ static void* decompress(uint32_t* data, size_t sizeBytes, size_t* sizeOut) {
             uint32_t uVar5 = uVar1 >> 4;
             const uint32_t* puVar2 = &CPRS_TABLE[(uVar1 & 0xf) * 0x04 + 0x10];
             uVar1 = *puVar2;
-            extraBits = uVar5 >> (uVar1 & 0xff);
+            readCarryByte = uVar5 >> (uVar1 & 0xff);
             remainingShifts -= uVar9 + 7 + uVar1;
             int iVar7 = puVar2[2] + ((1 << (uVar1 & 0xff)) - 1U & uVar5);
             if (iVar7 >= CPRS_TERM) {
@@ -203,43 +202,43 @@ static void* decompress(uint32_t* data, size_t sizeBytes, size_t* sizeOut) {
                 while (iVar6--) {
                     alpha = index & 3;
                     index += 1;
-                    *(uint8_t*)((size_t)&currentValue + alpha) = (uint8_t)carry;
+                    *(uint8_t*)((size_t)&currentValue + alpha) = writeCarryByte;
                     if ((index & 3) == 0) {
-                        *dst = currentValue;
+                        *writeCursor = currentValue;
                         currentValue = 0;
-                        dst = dst + 1;
+                        writeCursor = writeCursor + 1;
                     }
                 }
             } else {
-                uint8_t* start = (uint8_t*)((size_t)writeCursor + iVar7 * -2 + index);
+                uint8_t* start = (uint8_t*)buffer + index - iVar7 * 2;
                 for (int i = 0; i < iVar6; ++i) {
                     if (((uint32_t)(iVar7 * 2) < 4) && ((index & 3) != 0)) {
-                        *dst = currentValue;
+                        *writeCursor = currentValue;
                     }
+                    writeCarryByte = start[i];
                     alpha = index & 3;
-                    carry = (uint32_t)start[i];
                     index += 1;
-                    *(uint8_t*)((size_t)&currentValue + alpha) = start[i];
+                    *(uint8_t*)((size_t)&currentValue + alpha) = writeCarryByte;
                     if ((index & 3) == 0) {
-                        *dst = currentValue;
-                        dst += 1;
+                        *writeCursor = currentValue;
+                        writeCursor += 1;
                         currentValue = 0;
                     }
                 }
             }
         }
 
-        if ((int)remainingShifts < 0) {
-            remainingShifts = remainingShifts + 0x20;
-            extraBits = beta >> (0x20 - remainingShifts & 0xff);
+        if (remainingShifts < 0) {
+            remainingShifts += 0x20;
+            readCarryByte = beta >> (0x20 - remainingShifts);
             beta = *readCursor;
             readCursor += 1;
         }
-        alpha = beta << (remainingShifts & 0xff) | extraBits;
+        alpha = (beta << remainingShifts) | readCarryByte;
     }
 
     if ((index & 3) != 0) {
-        *dst = currentValue;
+        *writeCursor = currentValue;
     }
     if (sizeOut) {
         *sizeOut = index;
