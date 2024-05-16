@@ -36,6 +36,11 @@ static void* decompress(uint32_t* data, size_t sizeBytes, size_t* sizeOut);
 #define CPRS_SIG ((uint32_t)0x53525043)
 #define CPRS_TERM 0x10002
 
+#define APPLY_WRITE_CARRY(value, index, carry)  {                              \
+    value &= ~(0xff << (index * 8));                                           \
+    value |= (carry & 0xff) << (index * 8);                                    \
+}
+
 static const uint32_t CPRS_TABLE[192];
 
 int main(int argc, char** argv) {
@@ -177,7 +182,7 @@ static void* decompress(uint32_t* data, size_t sizeBytes, size_t* sizeOut) {
             writeCarryByte = alpha >> 1 & 0xff;
             alpha = index & 3;
             index += 1;
-            *(uint8_t*)((size_t)&currentValue + alpha) = writeCarryByte;
+            APPLY_WRITE_CARRY(currentValue, alpha, writeCarryByte);
             if ((index & 3) == 0) {
                 *writeCursor = currentValue;
                 writeCursor += 1;
@@ -202,7 +207,7 @@ static void* decompress(uint32_t* data, size_t sizeBytes, size_t* sizeOut) {
                 while (iVar6--) {
                     alpha = index & 3;
                     index += 1;
-                    *(uint8_t*)((size_t)&currentValue + alpha) = writeCarryByte;
+                    APPLY_WRITE_CARRY(currentValue, alpha, writeCarryByte);
                     if ((index & 3) == 0) {
                         *writeCursor = currentValue;
                         currentValue = 0;
@@ -212,13 +217,13 @@ static void* decompress(uint32_t* data, size_t sizeBytes, size_t* sizeOut) {
             } else {
                 uint8_t* start = (uint8_t*)buffer + index - iVar7 * 2;
                 for (int i = 0; i < iVar6; ++i) {
-                    if (((uint32_t)(iVar7 * 2) < 4) && ((index & 3) != 0)) {
+                    if (iVar7 * 2 < 4 && (index & 3) != 0) {
                         *writeCursor = currentValue;
                     }
                     writeCarryByte = start[i];
                     alpha = index & 3;
                     index += 1;
-                    *(uint8_t*)((size_t)&currentValue + alpha) = writeCarryByte;
+                    APPLY_WRITE_CARRY(currentValue, alpha, writeCarryByte);
                     if ((index & 3) == 0) {
                         *writeCursor = currentValue;
                         writeCursor += 1;
