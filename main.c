@@ -1,20 +1,19 @@
-/*
-seag-cprs
-Copyright (C) 2024  wilszdev
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*/
+/*  seag-cprs
+ *  Copyright (C) 2024  wilszdev
+ *
+ *  This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 #include <stdint.h>
 #include <stdio.h>
@@ -24,8 +23,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define ERR_OK          0x00
 #define ERR_USAGE       0x01
 #define ERR_CPRS_FILE   0x02
-#define ERR_UNCPRS      0x08
-#define ERR_OUT_FILE    0x10
+#define ERR_UNCPRS      0x04
+#define ERR_OUT_FILE    0x08
 
 #define FILE_READ_INCREMENT 0x1000
 
@@ -36,9 +35,9 @@ static void* decompress(uint32_t* data, size_t sizeBytes, size_t* sizeOut);
 #define CPRS_SIG ((uint32_t)0x53525043)
 #define CPRS_TERM 0x10002
 
-#define APPLY_WRITE_CARRY(value, index, carry)  {                              \
-    value &= ~(0xff << (index * 8));                                           \
-    value |= (carry & 0xff) << (index * 8);                                    \
+#define apply_write_carry(value, byteIndex, carry)  {                              \
+    value &= ~(0xff << (byteIndex * 8));                                           \
+    value |= (carry & 0xff) << (byteIndex * 8);                                    \
 }
 
 static const uint32_t CPRS_TABLE[192];
@@ -148,7 +147,7 @@ static void* decompress(uint32_t* data, size_t sizeBytes, size_t* sizeOut) {
     uint32_t compressedSize = data[1];
     uint32_t decompressedSize = data[2];
 
-    void* buffer = malloc(decompressedSize);
+    uint32_t* buffer = malloc(decompressedSize);
     memset(buffer, 0, decompressedSize);
 
     uint32_t alpha = data[3];
@@ -157,10 +156,10 @@ static void* decompress(uint32_t* data, size_t sizeBytes, size_t* sizeOut) {
     int8_t remainingShifts = 0x20;
     uint32_t currentValue = 0;
 
-    uint32_t* readCursor = data + 5;
-    uint32_t* writeCursor = buffer;
+    uint32_t readIndex = 5;
+    uint32_t writeIndex = 0;
 
-    uint32_t index = 0;
+    uint32_t extractedBytes = 0;
 
     /*  I don't fully understand this and don't really need to.
 
@@ -180,12 +179,11 @@ static void* decompress(uint32_t* data, size_t sizeBytes, size_t* sizeOut) {
             readCarryByte = alpha >> 9;
             remainingShifts -= 9;
             writeCarryByte = alpha >> 1 & 0xff;
-            alpha = index & 3;
-            index += 1;
-            APPLY_WRITE_CARRY(currentValue, alpha, writeCarryByte);
-            if ((index & 3) == 0) {
-                *writeCursor = currentValue;
-                writeCursor += 1;
+            alpha = extractedBytes & 3;
+            extractedBytes += 1;
+            apply_write_carry(currentValue, alpha, writeCarryByte);
+            if ((extractedBytes & 3) == 0) {
+                buffer[writeIndex++] = currentValue;
                 currentValue = 0;
             }
         } else {
@@ -205,28 +203,26 @@ static void* decompress(uint32_t* data, size_t sizeBytes, size_t* sizeOut) {
                 + ((int)(CPRS_TABLE[tableIndex + 1] + 0xb) >> 3);
             if (iVar7 == 0) {
                 while (iVar6--) {
-                    alpha = index & 3;
-                    index += 1;
-                    APPLY_WRITE_CARRY(currentValue, alpha, writeCarryByte);
-                    if ((index & 3) == 0) {
-                        *writeCursor = currentValue;
+                    alpha = extractedBytes & 3;
+                    extractedBytes += 1;
+                    apply_write_carry(currentValue, alpha, writeCarryByte);
+                    if ((extractedBytes & 3) == 0) {
+                        buffer[writeIndex++] = currentValue;
                         currentValue = 0;
-                        writeCursor = writeCursor + 1;
                     }
                 }
             } else {
-                uint8_t* start = (uint8_t*)buffer + index - iVar7 * 2;
+                uint8_t* start = (uint8_t*)buffer + extractedBytes - iVar7 * 2;
                 for (int i = 0; i < iVar6; ++i) {
-                    if (iVar7 * 2 < 4 && (index & 3) != 0) {
-                        *writeCursor = currentValue;
+                    if (iVar7 * 2 < 4 && (extractedBytes & 3) != 0) {
+                        buffer[writeIndex] = currentValue;
                     }
                     writeCarryByte = start[i];
-                    alpha = index & 3;
-                    index += 1;
-                    APPLY_WRITE_CARRY(currentValue, alpha, writeCarryByte);
-                    if ((index & 3) == 0) {
-                        *writeCursor = currentValue;
-                        writeCursor += 1;
+                    alpha = extractedBytes & 3;
+                    extractedBytes += 1;
+                    apply_write_carry(currentValue, alpha, writeCarryByte);
+                    if ((extractedBytes & 3) == 0) {
+                        buffer[writeIndex++] = currentValue;
                         currentValue = 0;
                     }
                 }
@@ -236,17 +232,16 @@ static void* decompress(uint32_t* data, size_t sizeBytes, size_t* sizeOut) {
         if (remainingShifts < 0) {
             remainingShifts += 0x20;
             readCarryByte = beta >> (0x20 - remainingShifts);
-            beta = *readCursor;
-            readCursor += 1;
+            beta = data[readIndex++];
         }
         alpha = (beta << remainingShifts) | readCarryByte;
     }
 
-    if ((index & 3) != 0) {
-        *writeCursor = currentValue;
+    if ((extractedBytes & 3) != 0) {
+        buffer[writeIndex] = currentValue;
     }
     if (sizeOut) {
-        *sizeOut = index;
+        *sizeOut = extractedBytes;
     }
     return buffer;
 }
