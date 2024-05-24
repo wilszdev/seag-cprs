@@ -35,9 +35,9 @@ static void* decompress(uint32_t* data, size_t sizeBytes, size_t* sizeOut);
 #define CPRS_SIG ((uint32_t)0x53525043)
 #define CPRS_TERM 0x10002
 
-#define apply_write_carry(value, byteIndex, carry)  {                              \
-    value &= ~(0xff << (byteIndex * 8));                                           \
-    value |= (carry & 0xff) << (byteIndex * 8);                                    \
+#define apply_write_carry(value, byteIndex, carry)  {                          \
+    value &= ~(0xff << (byteIndex * 8));                                       \
+    value |= (carry & 0xff) << (byteIndex * 8);                                \
 }
 
 static const uint32_t CPRS_TABLE[192];
@@ -212,12 +212,12 @@ static void* decompress(uint32_t* data, size_t sizeBytes, size_t* sizeOut) {
                     }
                 }
             } else {
-                uint8_t* start = (uint8_t*)buffer + extractedBytes - iVar7 * 2;
-                for (int i = 0; i < iVar6; ++i) {
+                int startIndex = extractedBytes - iVar7 * 2;
+                for (int i = startIndex; i < startIndex + iVar6; ++i) {
                     if (iVar7 * 2 < 4 && (extractedBytes & 3) != 0) {
                         buffer[writeIndex] = currentValue;
                     }
-                    writeCarryByte = start[i];
+                    writeCarryByte = ((uint8_t*)buffer)[i];
                     alpha = extractedBytes & 3;
                     extractedBytes += 1;
                     apply_write_carry(currentValue, alpha, writeCarryByte);
