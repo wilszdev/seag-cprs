@@ -88,10 +88,10 @@ def decompress(data):
     writeCarryByte = 0
 
     while 1:
-        readCarryByte = 0
+        readCarry = 0
 
         if alpha & 1 == 0:
-            readCarryByte = alpha >> 9
+            readCarry = alpha >> 9
             remainingShifts -= 9
             writeCarryByte = alpha >> 1 & 0xff
             alpha = extractedBytes & 3
@@ -107,7 +107,7 @@ def decompress(data):
             uVar5 = uVar1 >> 4
             tableIndex = (uVar1 & 0xf) * 0x04 + 0x10
             uVar1 = CPRS_TABLE[tableIndex]
-            readCarryByte = uVar5 >> (uVar1 & 0xff)
+            readCarry = uVar5 >> (uVar1 & 0xff)
             remainingShifts -= uVar9 + 7 + uVar1
 
             iVar7 = CPRS_TABLE[tableIndex + 2] + ((1 << (uVar1 & 0xff)) - 1 & uVar5)
@@ -146,11 +146,11 @@ def decompress(data):
 
         if remainingShifts < 0:
             remainingShifts += 0x20
-            readCarryByte = beta >> (0x20 - remainingShifts)
+            readCarry = beta >> (0x20 - remainingShifts)
             (beta,) = struct.unpack_from('<I', data, readIndex)
             readIndex += 4
 
-        alpha = (beta << remainingShifts) | readCarryByte
+        alpha = (beta << remainingShifts) | readCarry
         alpha &= 0xffffffff
 
     if extractedBytes & 3 != 0:

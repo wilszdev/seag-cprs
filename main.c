@@ -127,19 +127,17 @@ static int write_file(char* path, void* data, size_t size) {
 }
 
 static void* decompress(uint32_t* data, size_t sizeBytes, size_t* sizeOut) {
-    if (sizeBytes % sizeof(data[0]) != 0) {
-        fprintf(stderr, "Error: Source buffer not %lu-byte aligned\n", sizeof(data[0]));
+    if (sizeBytes % 4 != 0) {
+        fprintf(stderr, "Error: Source buffer not 4-byte aligned\n");
         return 0;
     }
 
-    size_t size = sizeBytes / sizeof(data[0]);
-
-    if (size <= 5) {
+    if (sizeBytes <= 20) {
         fprintf(stderr, "Error: Source buffer too small\n");
         return 0;
     }
 
-    if (data[0] != CPRS_SIG || data[size - 1] != CPRS_SIG) {
+    if (data[0] != CPRS_SIG || data[(sizeBytes / 4) - 1] != CPRS_SIG) {
         fprintf(stderr, "Error: CPRS signature check failed\n");
         return 0;
     }
@@ -173,10 +171,10 @@ static void* decompress(uint32_t* data, size_t sizeBytes, size_t* sizeOut) {
     uint8_t writeCarryByte;
 
     while (1) {
-        uint32_t readCarryByte;
+        uint32_t readCarry;
 
         if ((alpha & 1) == 0) {
-            readCarryByte = alpha >> 9;
+            readCarry = alpha >> 9;
             remainingShifts -= 9;
             writeCarryByte = alpha >> 1 & 0xff;
             alpha = extractedBytes & 3;
@@ -192,7 +190,7 @@ static void* decompress(uint32_t* data, size_t sizeBytes, size_t* sizeOut) {
             uint32_t uVar5 = uVar1 >> 4;
             size_t tableIndex = (uVar1 & 0xf) * 0x04 + 0x10;
             uVar1 = CPRS_TABLE[tableIndex];
-            readCarryByte = uVar5 >> (uVar1 & 0xff);
+            readCarry = uVar5 >> (uVar1 & 0xff);
             remainingShifts -= uVar9 + 7 + uVar1;
             int iVar7 = CPRS_TABLE[tableIndex + 2] + ((1 << (uVar1 & 0xff)) - 1U & uVar5);
             if (iVar7 >= CPRS_TERM) {
@@ -231,10 +229,10 @@ static void* decompress(uint32_t* data, size_t sizeBytes, size_t* sizeOut) {
 
         if (remainingShifts < 0) {
             remainingShifts += 0x20;
-            readCarryByte = beta >> (0x20 - remainingShifts);
+            readCarry = beta >> (0x20 - remainingShifts);
             beta = data[readIndex++];
         }
-        alpha = (beta << remainingShifts) | readCarryByte;
+        alpha = (beta << remainingShifts) | readCarry;
     }
 
     if ((extractedBytes & 3) != 0) {
