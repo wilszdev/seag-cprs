@@ -29,12 +29,12 @@ ERR_OUT_FILE  = 0x08
 
 
 def main():
-    if len(sys.argv) != 3:
-        sys.stderr.write(f'Usage: {sys.argv[0]} INPUTFILE OUTPUTFILE\n')
+    if len(sys.argv) not in (2, 3):
+        sys.stderr.write(f'Usage: {sys.argv[0]} INPUTFILE [OUTPUTFILE]\n')
         return ERR_USAGE
 
     try:
-        inputFile = open(sys.argv[1], 'rb')
+        inputFile = sys.stdin.buffer if sys.argv[1] == '-' else open(sys.argv[1], 'rb')
     except OSError:
         sys.stderr.write(f'Error: Unable to open file {sys.argv[1]}\n')
         return ERR_CPRS_FILE
@@ -46,7 +46,7 @@ def main():
         return ERR_UNCPRS
 
     try:
-        outputFile = open(sys.argv[2], 'wb')
+        outputFile = sys.stdout.buffer if len(sys.argv) == 2 else open(sys.argv[2], 'wb')
     except OSError:
         sys.stderr.write(f'Error: Unable to open file {sys.argv[2]} for writing\n')
         return ERR_OUT_FILE
